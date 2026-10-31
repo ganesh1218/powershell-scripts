@@ -6,7 +6,7 @@ Six standalone scripts for Windows PowerShell 5.1. Run commands below from the r
 
 - Windows PowerShell 5.1 on Windows. AD and DFSR modules are Windows management components; PowerShell 7 compatibility is not validated.
 - AD scripts: RSAT Active Directory PowerShell module, connectivity to a domain controller and delegated rights for the target OU. Use `-Server dc01.contoso.com` to select a domain controller. Existing users/groups cause an error; scripts do not overwrite them.
-- DFSR script: DFS Replication management tools (`DFSR` module), access to both replication members, and the replication group/folder names.
+- DFSR script: DFS Replication management tools (`DFSR` module), domain access for folder discovery, and access to both replication members.
 - Remote server scripts: WinRM configured, firewall access and target permissions. EnableLUA requires an administrator session; elevate PowerShell for local changes. Optional `-Credential (Get-Credential)` is supported for remote targets.
 - No passwords are stored in the repository. Follow your organization's execution policy and script signing requirements.
 
@@ -40,10 +40,17 @@ Remove `-WhatIf` to create it. Scope can be `Global`, `DomainLocal` or `Universa
 ## 4. Check DFSR backlog
 
 ```powershell
-.\scripts\Get-DfsrBacklogCount.ps1 -GroupName 'DataReplication' -FolderName 'SharedData' -SourceComputerName 'FS01' -DestinationComputerName 'FS02'
+# All replicated folders across all groups visible in the current domain:
+.\scripts\Get-DfsrBacklogCount.ps1 -SourceComputerName 'FS01' -DestinationComputerName 'FS02' | Format-Table GroupName,FolderName,BacklogCount,Status,ErrorMessage -AutoSize
+# All folders in one group:
+.\scripts\Get-DfsrBacklogCount.ps1 -GroupName 'DataReplication' -SourceComputerName 'FS01' -DestinationComputerName 'FS02'
+# Optional folder filter (also supports wildcards):
+.\scripts\Get-DfsrBacklogCount.ps1 -GroupName 'DataReplication' -FolderName 'Shared*' -SourceComputerName 'FS01' -DestinationComputerName 'FS02'
 ```
 
-The count is directional: swap source and destination to check the reverse direction. Normal `Get-DfsrBacklog` output is limited to 100 entries, so this script extracts the full `Count: N` from verbose output. It requires English verbose messages and throws if no unambiguous count is returned, including an unrecognized zero-backlog message; missing output is never silently reported as zero. Run the underlying cmdlet directly to diagnose such a case.
+The script discovers replicated folders with `Get-DfsReplicatedFolder` and checks each separately for the specified server pair. Group and folder filters default to `*`. Discovery covers the current domain's configured groups; folders where this pair is not participating or cannot be queried produce an `Error` row. It does not discover other server pairs or automatically check both directions. Swap source and destination to check the reverse direction.
+
+Each folder returns a row with group, folder, backlog count, status, error message and timestamp. One folder's failure does not stop the remaining checks; discovery failures and no matching folders terminate the script. Always inspect `Status`: an error row has a null count, not zero. Normal `Get-DfsrBacklog` output is limited to 100 entries, so the script extracts the full `Count: N` from English verbose output. Missing, ambiguous, localized or unrecognized zero-backlog messages produce an error row. Run the underlying cmdlet directly to diagnose such cases.
 
 ## 5. Update EnableLUA and reboot
 
@@ -80,4 +87,5 @@ git push -u origin main
 ## References
 
 - [Microsoft: Get-DfsrBacklog](https://learn.microsoft.com/en-us/powershell/module/dfsr/get-dfsrbacklog)
+- [Microsoft: Get-DfsReplicatedFolder](https://learn.microsoft.com/en-us/powershell/module/dfsr/get-dfsreplicatedfolder)
 - [Microsoft: UAC configuration and EnableLUA](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/settings-and-configuration)
