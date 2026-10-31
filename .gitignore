@@ -1,0 +1,9 @@
+# Credentials, environment files and generated reports
+.env
+.env.*
+*.credential
+*.pfx
+*.key
+*.log
+reports/
+.vscode/
